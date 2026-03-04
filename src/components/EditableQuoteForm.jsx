@@ -1,22 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, Save, Printer, RefreshCw, Plus, Minus, Trash2, Package, Download, Hash, Info, ChevronDown, ChevronUp } from 'lucide-react';
+import { FileText, Save, Printer, RefreshCw, Plus, Minus, Trash2, Package, Download, Hash, Info, ChevronDown, ChevronUp, Map } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { useAppContext } from '@/context/AppContext';
 import AddProductModal from './AddProductModal';
 import SaveQuoteModal from './SaveQuoteModal';
+import WarehouseOrderModal from './WarehouseOrderModal';
 import { generateQuotePDF } from '@/utils/PDFGenerator';
+import { useNavigate } from 'react-router-dom';
 
-const EditableQuoteForm = ({ initialQuote, onSave, onReset }) => {
+const EditableQuoteForm = ({ initialQuote, onSave, onReset, onSwitchToDrawing }) => {
   const { manualProducts, removeManualProduct, updateManualProductQuantity, currentDrawing, clientData, editingQuote } = useAppContext();
   const { toast } = useToast();
-  
+
   // Local state for calculated products overrides
   const [calculatedOverrides, setCalculatedOverrides] = useState({});
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [isWarehouseModalOpen, setIsWarehouseModalOpen] = useState(false);
   const [showExtrasBreakdown, setShowExtrasBreakdown] = useState(true);
+  const navigate = useNavigate();
+  const { createOrder, createWarehouseOrder } = useAppContext();
 
   // Reset overrides when initialQuote changes significantly
   useEffect(() => {
@@ -38,8 +43,8 @@ const EditableQuoteForm = ({ initialQuote, onSave, onReset }) => {
 
   // Helper to get effective quantity
   const getQuantity = (item) => {
-    return calculatedOverrides[item.name] !== undefined 
-      ? calculatedOverrides[item.name] 
+    return calculatedOverrides[item.name] !== undefined
+      ? calculatedOverrides[item.name]
       : item.quantity;
   };
 
@@ -136,8 +141,33 @@ const EditableQuoteForm = ({ initialQuote, onSave, onReset }) => {
     }
   };
 
-  const handlePrint = () => {
-    window.print();
+  const handleCreateWarehouseOrder = (itemsToOrder, type) => {
+    const finalQuote = getFinalQuoteObject();
+    const newOrder = createOrder(finalQuote);
+    const newWarehouseOrder = createWarehouseOrder({
+      orderId: newOrder.id,
+      quoteId: finalQuote.id || finalQuote.quoteNumber,
+      quoteNumber: finalQuote.quoteNumber,
+      clientName: finalQuote.clientData?.name,
+      items: itemsToOrder,
+      type: type
+    });
+
+    setIsWarehouseModalOpen(false);
+
+    if (newWarehouseOrder) {
+      toast({
+        title: "Orden Creada",
+        description: `Orden de depósito #${newWarehouseOrder.number} (${type === 'partial' ? 'Parcial' : 'Completa'}) generada.`,
+      });
+      navigate('/warehouse-orders');
+    } else {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo crear la orden.",
+      });
+    }
   };
 
   // Check if there are any line details with additional sets
@@ -159,7 +189,7 @@ const EditableQuoteForm = ({ initialQuote, onSave, onReset }) => {
           {initialQuote.id && (
             <div className="flex items-center gap-1 mt-1 text-slate-400 text-sm">
               <Hash className="w-3 h-3" />
-              <span className="font-mono">{initialQuote.quoteNumber ? `#${String(initialQuote.quoteNumber).padStart(3,'0')}` : String(initialQuote.id).slice(0, 8).toUpperCase()}</span>
+              <span className="font-mono">{initialQuote.quoteNumber ? `#${String(initialQuote.quoteNumber).padStart(3, '0')}` : String(initialQuote.id).slice(0, 8).toUpperCase()}</span>
             </div>
           )}
         </div>
@@ -172,14 +202,23 @@ const EditableQuoteForm = ({ initialQuote, onSave, onReset }) => {
             <Save className="w-4 h-4 mr-2" />
             {editingQuote ? 'Guardar Cambios' : 'Guardar'}
           </Button>
+          {!editingQuote && onSwitchToDrawing && (
+            <Button
+              onClick={onSwitchToDrawing}
+              size="sm"
+              className="bg-slate-700 hover:bg-slate-600 border border-slate-600 text-white"
+            >
+              <Map className="w-4 h-4 mr-2" />
+              Plano
+            </Button>
+          )}
           <Button
-            onClick={handlePrint}
+            onClick={() => setIsWarehouseModalOpen(true)}
             size="sm"
-            variant="outline"
-            className="border-slate-700 hover:bg-slate-700"
+            className="bg-blue-600 hover:bg-blue-700 text-white"
           >
-            <Printer className="w-4 h-4 mr-2" />
-            Imprimir
+            <Package className="w-4 h-4 mr-2" />
+            Generar Orden
           </Button>
           <Button
             onClick={handleDownloadPDF}
@@ -229,11 +268,11 @@ const EditableQuoteForm = ({ initialQuote, onSave, onReset }) => {
           </div>
         </div>
       )}
-      
+
       {/* Additional Materials Breakdown */}
       {hasExtraMaterials && (
         <div className="bg-orange-900/20 border border-orange-700/50 rounded-lg overflow-hidden mb-6">
-          <button 
+          <button
             onClick={() => setShowExtrasBreakdown(!showExtrasBreakdown)}
             className="w-full px-4 py-3 bg-orange-900/30 flex justify-between items-center text-left"
           >
@@ -243,10 +282,10 @@ const EditableQuoteForm = ({ initialQuote, onSave, onReset }) => {
             </h3>
             {showExtrasBreakdown ? <ChevronUp className="w-4 h-4 text-orange-400" /> : <ChevronDown className="w-4 h-4 text-orange-400" />}
           </button>
-          
+
           <AnimatePresence>
             {showExtrasBreakdown && (
-              <motion.div 
+              <motion.div
                 initial={{ height: 0, opacity: 0 }}
                 animate={{ height: "auto", opacity: 1 }}
                 exit={{ height: 0, opacity: 0 }}
@@ -256,7 +295,7 @@ const EditableQuoteForm = ({ initialQuote, onSave, onReset }) => {
                   <p className="text-sm text-orange-200/80 mb-2">
                     Se han agregado refuerzos adicionales para líneas que superan los 50m. Estos materiales ya están incluidos en la lista principal.
                   </p>
-                  
+
                   {initialQuote.lineDetails.filter(l => l.additionalSets > 0).map((line) => (
                     <div key={line.lineIndex} className="bg-orange-950/30 rounded p-3 border border-orange-900/30">
                       <div className="font-medium text-orange-100 mb-2">
@@ -264,10 +303,10 @@ const EditableQuoteForm = ({ initialQuote, onSave, onReset }) => {
                       </div>
                       <ul className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-1 text-sm text-orange-200/70">
                         {line.materials.map((mat, idx) => (
-                           <li key={idx} className="flex justify-between">
-                             <span>• {mat.name}</span>
-                             <span>x{mat.quantity}</span>
-                           </li>
+                          <li key={idx} className="flex justify-between">
+                            <span>• {mat.name}</span>
+                            <span>x{mat.quantity}</span>
+                          </li>
                         ))}
                       </ul>
                     </div>
@@ -302,19 +341,19 @@ const EditableQuoteForm = ({ initialQuote, onSave, onReset }) => {
                     <div className="text-xs text-slate-400">{item.category}</div>
                   </div>
                   <div className="flex items-center gap-2 bg-slate-900/50 rounded-lg p-1">
-                    <button 
+                    <button
                       onClick={() => handleQuantityChange(item.name, qty - 1)}
                       className="p-1 hover:bg-slate-700 rounded transition-colors text-slate-300"
                     >
                       <Minus className="w-3 h-3" />
                     </button>
-                    <input 
-                      type="number" 
+                    <input
+                      type="number"
                       value={qty}
                       onChange={(e) => handleQuantityChange(item.name, parseInt(e.target.value) || 0)}
                       className="w-12 text-center bg-transparent text-white text-sm focus:outline-none"
                     />
-                    <button 
+                    <button
                       onClick={() => handleQuantityChange(item.name, qty + 1)}
                       className="p-1 hover:bg-slate-700 rounded transition-colors text-slate-300"
                     >
@@ -345,9 +384,9 @@ const EditableQuoteForm = ({ initialQuote, onSave, onReset }) => {
               <Plus className="w-4 h-4 text-green-400" />
               Productos Agregados Manualmente
             </h3>
-            <Button 
-              size="sm" 
-              variant="ghost" 
+            <Button
+              size="sm"
+              variant="ghost"
               onClick={() => setIsProductModalOpen(true)}
               className="text-orange-500 hover:text-orange-400 hover:bg-orange-500/10 h-8"
             >
@@ -355,7 +394,7 @@ const EditableQuoteForm = ({ initialQuote, onSave, onReset }) => {
               Agregar Producto
             </Button>
           </div>
-          
+
           <div className="divide-y divide-slate-700/50">
             {manualProducts.length === 0 ? (
               <div className="p-4 text-center text-slate-500 text-sm italic">
@@ -369,19 +408,19 @@ const EditableQuoteForm = ({ initialQuote, onSave, onReset }) => {
                     <div className="text-xs text-slate-400">Agregado manual</div>
                   </div>
                   <div className="flex items-center gap-2 bg-slate-900/50 rounded-lg p-1">
-                    <button 
+                    <button
                       onClick={() => updateManualProductQuantity(item.productId, item.quantity - 1)}
                       className="p-1 hover:bg-slate-700 rounded transition-colors text-slate-300"
                     >
                       <Minus className="w-3 h-3" />
                     </button>
-                    <input 
-                      type="number" 
+                    <input
+                      type="number"
                       value={item.quantity}
                       onChange={(e) => updateManualProductQuantity(item.productId, parseInt(e.target.value) || 0)}
                       className="w-12 text-center bg-transparent text-white text-sm focus:outline-none"
                     />
-                    <button 
+                    <button
                       onClick={() => updateManualProductQuantity(item.productId, item.quantity + 1)}
                       className="p-1 hover:bg-slate-700 rounded transition-colors text-slate-300"
                     >
@@ -418,13 +457,20 @@ const EditableQuoteForm = ({ initialQuote, onSave, onReset }) => {
       </div>
 
       <AddProductModal isOpen={isProductModalOpen} onClose={() => setIsProductModalOpen(false)} />
-      
-      <SaveQuoteModal 
-        isOpen={isSaveModalOpen} 
+
+      <SaveQuoteModal
+        isOpen={isSaveModalOpen}
         onClose={() => setIsSaveModalOpen(false)}
         currentQuoteData={getFinalQuoteObject()}
         onConfirm={confirmSave}
         isEditing={!!editingQuote}
+      />
+
+      <WarehouseOrderModal
+        isOpen={isWarehouseModalOpen}
+        onClose={() => setIsWarehouseModalOpen(false)}
+        quote={getFinalQuoteObject()}
+        onConfirm={handleCreateWarehouseOrder}
       />
     </motion.div>
   );

@@ -6,10 +6,16 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useAppContext } from '@/context/AppContext';
 import OrderTimeline from '@/components/OrderTimeline';
+import WarehouseOrderModal from '@/components/WarehouseOrderModal';
+import { useNavigate } from 'react-router-dom';
+import { useToast } from '@/components/ui/use-toast';
 
 const SalesOrders = () => {
-    const { presupuestos, createOrder, orders, updateOrderStatus } = useAppContext();
+    const { presupuestos, createOrder, createWarehouseOrder, orders, updateOrderStatus } = useAppContext();
     const [searchTerm, setSearchTerm] = useState('');
+    const [selectedQuoteForModal, setSelectedQuoteForModal] = useState(null);
+    const navigate = useNavigate();
+    const { toast } = useToast();
 
     const filteredQuotes = presupuestos.filter(p => {
         if (!p || !p.clientData) return false;
@@ -30,7 +36,41 @@ const SalesOrders = () => {
     });
 
     const handleCreateOrder = (quote) => {
-        createOrder(quote);
+        setSelectedQuoteForModal(quote);
+    };
+
+    const handleConfirmOrder = (itemsToOrder, type) => {
+        if (!selectedQuoteForModal) return;
+
+        // Create the main sales order tracking the sale
+        const newOrder = createOrder(selectedQuoteForModal);
+
+        // Create the warehouse order with potentially partial items
+        const newWarehouseOrder = createWarehouseOrder({
+            orderId: newOrder.id,
+            quoteId: selectedQuoteForModal.id,
+            quoteNumber: selectedQuoteForModal.quoteNumber,
+            clientName: selectedQuoteForModal.clientData?.name,
+            items: itemsToOrder,
+            type: type
+        });
+
+        setSelectedQuoteForModal(null);
+
+        if (newWarehouseOrder) {
+            toast({
+                title: "Orden Creada",
+                description: `Orden de depósito #${newWarehouseOrder.number} generada exitosamente.`,
+            });
+            // Redirect to warehouse orders to see the newly created order
+            navigate('/warehouse-orders');
+        } else {
+            toast({
+                variant: "destructive",
+                title: "Error",
+                description: "No se pudo crear la orden.",
+            });
+        }
     };
 
     return (
@@ -73,8 +113,8 @@ const SalesOrders = () => {
                                                 <div className="flex items-center gap-2">
                                                     <h3 className="text-lg font-bold text-white">{order.orderNumber}</h3>
                                                     <span className={`px-2 py-0.5 rounded-full text-xs ${order.status === 'Entregada' ? 'bg-green-500/20 text-green-400' :
-                                                            order.status === 'Cancelada' ? 'bg-red-500/20 text-red-400' :
-                                                                'bg-blue-500/20 text-blue-400'
+                                                        order.status === 'Cancelada' ? 'bg-red-500/20 text-red-400' :
+                                                            'bg-blue-500/20 text-blue-400'
                                                         }`}>
                                                         {order.status}
                                                     </span>
@@ -136,6 +176,13 @@ const SalesOrders = () => {
                     </TabsContent>
                 </Tabs>
             </motion.div>
+
+            <WarehouseOrderModal
+                isOpen={!!selectedQuoteForModal}
+                onClose={() => setSelectedQuoteForModal(null)}
+                quote={selectedQuoteForModal}
+                onConfirm={handleConfirmOrder}
+            />
         </div>
     );
 };

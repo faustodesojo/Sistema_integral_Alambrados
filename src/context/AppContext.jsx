@@ -175,6 +175,33 @@ export const AppProvider = ({ children }) => {
         history: []
     }));
 
+    // Auto-open cash register daily
+    useEffect(() => {
+        const checkAndOpenCashRegister = () => {
+            const todayStr = new Date().toLocaleDateString();
+            const lastCloseDateStr = cashRegister.history?.length > 0
+                ? new Date(cashRegister.history[0].closeDate).toLocaleDateString()
+                : null;
+
+            // If it's closed and we haven't closed it today, open it automatically
+            if (!cashRegister.isOpen && lastCloseDateStr !== todayStr) {
+                const newRegister = {
+                    isOpen: true,
+                    openingBalance: 0,
+                    currentDate: new Date().toISOString(),
+                    movements: [],
+                    history: cashRegister.history || []
+                };
+                setCashRegister(newRegister);
+                // We're inside useEffect, deferring toast might be safer, but we can try logging
+                console.log("Caja abierta automáticamente para el día:", todayStr);
+            }
+        };
+
+        checkAndOpenCashRegister();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
     // === SEQUENTIAL IDs ===
     const [nextQuoteId, setNextQuoteId] = useState(() => {
         try {

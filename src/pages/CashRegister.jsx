@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
-import { Wallet, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Clock, DollarSign } from 'lucide-react';
+import { Wallet, ArrowUpCircle, ArrowDownCircle, Lock, Unlock, Clock, DollarSign, Printer } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAppContext } from '@/context/AppContext';
 import { useToast } from '@/components/ui/use-toast';
@@ -55,10 +55,21 @@ const CashRegister = () => {
             <Helmet><title>Caja Diaria - Alambrados Belgrano</title></Helmet>
 
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="max-w-7xl mx-auto">
-                <h1 className="text-3xl font-bold text-white mb-6 flex items-center gap-3">
-                    <Wallet className="w-8 h-8 text-orange-500" />
-                    Caja Diaria
-                </h1>
+                <div className="flex justify-between items-center mb-6">
+                    <h1 className="text-3xl font-bold text-white flex items-center gap-3">
+                        <Wallet className="w-8 h-8 text-orange-500" />
+                        Caja Diaria
+                    </h1>
+                    {cashRegister.isOpen && (
+                        <Button
+                            onClick={() => window.print()}
+                            className="bg-slate-700 hover:bg-slate-600 text-white print:hidden"
+                        >
+                            <Printer className="w-4 h-4 mr-2" />
+                            Imprimir Caja
+                        </Button>
+                    )}
+                </div>
 
                 {!cashRegister.isOpen ? (
                     /* CLOSED STATE - Show opening form + history */
@@ -138,7 +149,7 @@ const CashRegister = () => {
 
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                             {/* Add Movement Form */}
-                            <div className="bg-slate-800/50 p-6 rounded-xl border border-slate-700">
+                            <div className="bg-slate-800/50 p-6 rounded-xl border border-slate-700 print:hidden">
                                 <h3 className="text-lg font-bold text-white mb-4">Registrar Movimiento</h3>
                                 <form onSubmit={handleAddMovement} className="space-y-4">
                                     <div className="flex gap-2">
@@ -166,7 +177,7 @@ const CashRegister = () => {
                             </div>
 
                             {/* Movement List */}
-                            <div className="lg:col-span-2 bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+                            <div className="lg:col-span-2 bg-slate-800 rounded-xl border border-slate-700 overflow-hidden print:w-full print:border-0 print:shadow-none print:col-span-3">
                                 <div className="p-4 border-b border-slate-700 flex justify-between items-center">
                                     <h3 className="text-lg font-bold text-white">Movimientos del Día</h3>
                                     <span className="text-slate-400 text-sm">{cashRegister.movements?.length || 0} movimientos</span>
@@ -208,7 +219,7 @@ const CashRegister = () => {
                         </div>
 
                         {/* Close Cash Register */}
-                        <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-6">
+                        <div className="bg-red-500/5 border border-red-500/20 rounded-xl p-6 print:hidden">
                             <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
                                 <Lock className="w-5 h-5 text-red-400" />
                                 Cierre de Caja

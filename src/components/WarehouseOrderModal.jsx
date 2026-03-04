@@ -53,6 +53,17 @@ const WarehouseOrderModal = ({ isOpen, onClose, quote, onConfirm }) => {
     setQuantities(prev => ({ ...prev, [id]: qty }));
   };
 
+  const handleSelectAll = (checked) => {
+    const newSelected = {};
+    items.forEach(item => {
+      newSelected[item.uniqueId] = checked;
+    });
+    setSelectedItems(newSelected);
+  };
+
+  const allSelected = items.length > 0 && items.every(item => selectedItems[item.uniqueId]);
+  const someSelected = items.some(item => selectedItems[item.uniqueId]) && !allSelected;
+
   const handleConfirm = () => {
     let finalItems = [];
 
@@ -71,7 +82,7 @@ const WarehouseOrderModal = ({ isOpen, onClose, quote, onConfirm }) => {
           quantity: quantities[i.uniqueId],
           category: i.category
         }));
-      
+
       if (finalItems.length === 0) {
         alert("Debe seleccionar al menos un ítem para la orden parcial.");
         return;
@@ -143,13 +154,25 @@ const WarehouseOrderModal = ({ isOpen, onClose, quote, onConfirm }) => {
               </TabsContent>
 
               <TabsContent value="partial" className="mt-0 p-0">
-                 <div className="p-3 bg-orange-900/10 text-orange-200 text-xs border-b border-orange-900/30 mb-2">
-                   Seleccione los ítems que desea incluir en esta orden y ajuste las cantidades si es necesario.
-                 </div>
-                 <Table>
+                <div className="p-3 bg-orange-900/10 text-orange-200 text-xs border-b border-orange-900/30 mb-2">
+                  Seleccione los ítems que desea incluir en esta orden y ajuste las cantidades si es necesario.
+                </div>
+                <Table>
                   <TableHeader className="bg-slate-900 sticky top-0 z-10">
                     <TableRow className="border-slate-700">
-                      <TableHead className="w-[50px] bg-slate-900"></TableHead>
+                      <TableHead className="w-[50px] bg-slate-900">
+                        <Checkbox
+                          checked={allSelected}
+                          ref={input => {
+                            if (input) {
+                              input.indeterminate = someSelected;
+                            }
+                          }}
+                          onCheckedChange={handleSelectAll}
+                          className="border-slate-500 data-[state=checked]:bg-orange-600 data-[state=checked]:border-orange-600"
+                          title="Seleccionar Todo"
+                        />
+                      </TableHead>
                       <TableHead className="text-slate-400 w-[50%]">Ítem</TableHead>
                       <TableHead className="text-right text-slate-400">Cant. Original</TableHead>
                       <TableHead className="text-right text-slate-400 w-[120px]">Cant. Orden</TableHead>
@@ -157,13 +180,13 @@ const WarehouseOrderModal = ({ isOpen, onClose, quote, onConfirm }) => {
                   </TableHeader>
                   <TableBody>
                     {items.map((item) => (
-                      <TableRow 
-                        key={item.uniqueId} 
+                      <TableRow
+                        key={item.uniqueId}
                         className={`border-slate-800 transition-colors ${selectedItems[item.uniqueId] ? 'bg-slate-800/40' : 'opacity-60'}`}
                       >
                         <TableCell>
-                          <Checkbox 
-                            checked={!!selectedItems[item.uniqueId]} 
+                          <Checkbox
+                            checked={!!selectedItems[item.uniqueId]}
                             onCheckedChange={() => toggleItem(item.uniqueId)}
                             className="border-slate-500 data-[state=checked]:bg-orange-600 data-[state=checked]:border-orange-600"
                           />
@@ -187,10 +210,10 @@ const WarehouseOrderModal = ({ isOpen, onClose, quote, onConfirm }) => {
               </TabsContent>
             </div>
           </Tabs>
-          
+
           <div className="mt-6 pt-4 border-t border-slate-800 flex justify-between items-center">
             <div className="text-xs text-slate-500">
-              {orderType === 'partial' 
+              {orderType === 'partial'
                 ? `${Object.values(selectedItems).filter(Boolean).length} ítems seleccionados`
                 : `${items.length} ítems totales`
               }

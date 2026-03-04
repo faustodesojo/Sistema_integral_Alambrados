@@ -58,7 +58,7 @@ const QuoteDisplay = ({ quote, onReset }) => {
   const handleCreateWarehouseOrder = (itemsToOrder, type) => {
     // 1. Create Sales Order (Confirms the Sale if not exists logic can be here, simplifying for now)
     const newOrder = createOrder(quote);
-    
+
     // 2. Create Warehouse Order (Triggers Preparation)
     const newWarehouseOrder = createWarehouseOrder({
       orderId: newOrder.id,
@@ -70,12 +70,14 @@ const QuoteDisplay = ({ quote, onReset }) => {
     });
 
     setIsWarehouseModalOpen(false);
-    
+
     if (newWarehouseOrder) {
       toast({
         title: "Orden Creada",
         description: `Orden de depósito #${newWarehouseOrder.number} (${type === 'partial' ? 'Parcial' : 'Completa'}) generada.`,
       });
+      // Redirect to warehouse orders section after successful creation
+      navigate('/warehouse-orders');
     } else {
       toast({
         variant: "destructive",
@@ -102,17 +104,17 @@ const QuoteDisplay = ({ quote, onReset }) => {
             <div className="flex items-center gap-2 mt-1">
               <div className="flex items-center gap-1 text-slate-400 text-sm bg-slate-900/50 px-2 py-0.5 rounded border border-slate-700/50">
                 <Hash className="w-3 h-3" />
-                <span className="font-mono">ID: {quote.id}</span>
+                <span className="font-mono">#{quote.quoteNumber ? String(quote.quoteNumber).padStart(3, '0') : String(quote.id).slice(0, 8).toUpperCase()}</span>
               </div>
-              
+
               {hasOrders && (
-                 <div 
-                   onClick={() => navigate('/warehouse-orders')}
-                   className="flex items-center gap-1 bg-blue-900/30 text-blue-400 px-2 py-0.5 rounded border border-blue-500/30 text-xs font-medium cursor-pointer hover:bg-blue-900/50 transition-colors"
-                 >
-                   <Package className="w-3 h-3" />
-                   {linkedOrders.length} Orden(es)
-                 </div>
+                <div
+                  onClick={() => navigate('/warehouse-orders')}
+                  className="flex items-center gap-1 bg-blue-900/30 text-blue-400 px-2 py-0.5 rounded border border-blue-500/30 text-xs font-medium cursor-pointer hover:bg-blue-900/50 transition-colors"
+                >
+                  <Package className="w-3 h-3" />
+                  {linkedOrders.length} Orden(es)
+                </div>
               )}
             </div>
           </div>
@@ -123,7 +125,7 @@ const QuoteDisplay = ({ quote, onReset }) => {
               className="bg-blue-600 hover:bg-blue-700 text-white"
             >
               <Package className="w-4 h-4 mr-2" />
-              Orden al Depósito
+              Realizar Orden
             </Button>
             <Button
               onClick={handlePrint}
@@ -196,29 +198,29 @@ const QuoteDisplay = ({ quote, onReset }) => {
             </div>
           </div>
         </div>
-        
+
         {/* Drawing Preview Section */}
         {drawingData && (
           <div className="bg-slate-900/50 border border-slate-700 rounded-lg overflow-hidden">
             <div className="px-4 py-2 bg-slate-800 text-sm font-semibold text-slate-300 border-b border-slate-700 flex justify-between items-center">
-               <span className="flex items-center gap-2">
-                 <ImageIcon className="w-4 h-4 text-blue-400" />
-                 Plano Adjunto
-               </span>
-               <Button
-                 onClick={handleDownloadDrawing}
-                 size="sm"
-                 variant="ghost"
-                 className="h-6 text-xs text-blue-400 hover:text-blue-300 hover:bg-blue-900/20"
-               >
-                 <Download className="w-3 h-3 mr-1" />
-                 Descargar
-               </Button>
+              <span className="flex items-center gap-2">
+                <ImageIcon className="w-4 h-4 text-blue-400" />
+                Plano Adjunto
+              </span>
+              <Button
+                onClick={handleDownloadDrawing}
+                size="sm"
+                variant="ghost"
+                className="h-6 text-xs text-blue-400 hover:text-blue-300 hover:bg-blue-900/20"
+              >
+                <Download className="w-3 h-3 mr-1" />
+                Descargar
+              </Button>
             </div>
             <div className="p-4 bg-white flex justify-center">
-              <img 
-                src={drawingData} 
-                alt="Plano de trabajo" 
+              <img
+                src={drawingData}
+                alt="Plano de trabajo"
                 className="max-h-[300px] object-contain border border-slate-200 shadow-sm"
               />
             </div>
@@ -265,7 +267,7 @@ const QuoteDisplay = ({ quote, onReset }) => {
           {/* Materials Table - Manual */}
           {hasManualItems && (
             <div className="bg-slate-900/50 border border-slate-700 rounded-lg overflow-hidden">
-               <div className="px-4 py-2 bg-slate-800 text-sm font-semibold text-green-400 border-b border-slate-700">
+              <div className="px-4 py-2 bg-slate-800 text-sm font-semibold text-green-400 border-b border-slate-700">
                 Productos Adicionales
               </div>
               <div className="overflow-x-auto">
@@ -307,7 +309,7 @@ const QuoteDisplay = ({ quote, onReset }) => {
         </div>
       </motion.div>
 
-      <WarehouseOrderModal 
+      <WarehouseOrderModal
         isOpen={isWarehouseModalOpen}
         onClose={() => setIsWarehouseModalOpen(false)}
         quote={quote}

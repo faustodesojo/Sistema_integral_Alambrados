@@ -36,6 +36,7 @@ const SalesDashboard = () => {
 
     const [currentQuote, setCurrentQuote] = useState(null);
     const [selectedHistoryQuote, setSelectedHistoryQuote] = useState(null);
+    const [activeTab, setActiveTab] = useState("calculator");
 
     useEffect(() => {
         if (location.state?.viewQuote) {
@@ -130,7 +131,7 @@ const SalesDashboard = () => {
 
                 {/* Main Content */}
                 <div className="container mx-auto px-4 py-8">
-                    <Tabs defaultValue="calculator" className="space-y-6">
+                    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
                         {!editingQuote && (
                             <div className="flex justify-center">
                                 <TabsList className="bg-slate-800 border border-slate-700 p-1 rounded-xl">
@@ -210,6 +211,7 @@ const SalesDashboard = () => {
                                             initialQuote={editingQuote || currentQuote}
                                             onSave={handleSaveQuote}
                                             onReset={handleReset}
+                                            onSwitchToDrawing={() => setActiveTab('drawing')}
                                         />
                                     )}
                                 </div>
