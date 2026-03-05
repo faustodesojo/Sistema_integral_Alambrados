@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
-import { ShoppingCart, Search, Plus, Minus, Trash2, CreditCard, Package, FileText } from 'lucide-react';
+import { ShoppingCart, Search, Plus, Minus, Trash2, CreditCard, Package, FileText, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAppContext } from '@/context/AppContext';
 import { useToast } from '@/components/ui/use-toast';
@@ -9,13 +9,15 @@ import { generateWarehousePDF } from '@/utils/WarehousePDFGenerator';
 import { generateQuotePDF } from '@/utils/PDFGenerator';
 
 const CounterSale = () => {
-    const { products, tejidoTypes, createDirectOrder, createWarehouseOrder } = useAppContext();
+    const { products, tejidoTypes, createDirectOrder } = useAppContext();
     const { toast } = useToast();
 
     const [searchTerm, setSearchTerm] = useState('');
     const [cart, setCart] = useState([]);
     const [paymentMethod, setPaymentMethod] = useState('Efectivo');
     const [clientName, setClientName] = useState('');
+    // Track quantity input per product row
+    const [quantities, setQuantities] = useState({});
 
     const allProducts = useMemo(() => {
         const prods = products.map(p => ({ ...p, unitPrice: p.price, sourceType: 'product' }));
@@ -32,14 +34,17 @@ const CounterSale = () => {
         );
     }, [allProducts, searchTerm]);
 
-    const addToCart = (product) => {
+    const addToCart = (product, qty = 1) => {
+        const quantity = Math.max(1, parseInt(qty) || 1);
         setCart(prev => {
             const existing = prev.find(i => i.id === product.id);
             if (existing) {
-                return prev.map(i => i.id === product.id ? { ...i, quantity: i.quantity + 1 } : i);
+                return prev.map(i => i.id === product.id ? { ...i, quantity: i.quantity + quantity } : i);
             }
-            return [...prev, { ...product, quantity: 1 }];
+            return [...prev, { ...product, quantity }];
         });
+        // Reset quantity input for that product
+        setQuantities(prev => ({ ...prev, [`${product.sourceType}-${product.id}`]: '' }));
     };
 
     const updateCartQty = (id, delta) => {
@@ -58,9 +63,9 @@ const CounterSale = () => {
 
     const cartTotal = cart.reduce((sum, item) => sum + (item.unitPrice * item.quantity), 0);
 
-    const handleCheckout = (withWarehouse = false) => {
+    const handleCheckout = () => {
         if (cart.length === 0) {
-            toast({ title: "Carrito vacío", description: "Agregue productos antes de facturar.", variant: "destructive" });
+            toast({ title: "Carrito vacío", description: "Agregue productos antes de registrar la venta.", variant: "destructive" });
             return;
         }
 
@@ -75,21 +80,7 @@ const CounterSale = () => {
 
         const clientInfo = clientName.trim() ? { name: clientName.trim() } : { name: 'Consumidor Final' };
 
-        const newOrder = createDirectOrder(items, clientInfo, paymentMethod, cartTotal);
-
-        if (withWarehouse) {
-            const newWarehouseOrder = createWarehouseOrder({
-                orderId: newOrder.id,
-                quoteId: newOrder.orderNumber, // Direct order has no quote, use order number
-                quoteNumber: newOrder.orderNumber,
-                clientName: clientInfo.name,
-                items: items,
-                type: 'complete'
-            });
-
-            generateWarehousePDF(newWarehouseOrder);
-            toast({ title: "PDF Generado", description: "Se ha descargado la orden para el depósito." });
-        }
+        createDirectOrder(items, clientInfo, paymentMethod, cartTotal);
 
         setCart([]);
         setClientName('');
@@ -129,29 +120,54 @@ const CounterSale = () => {
                                         <th className="px-4 py-2 text-left text-xs font-medium text-slate-400 uppercase">Producto</th>
                                         <th className="px-4 py-2 text-right text-xs font-medium text-slate-400 uppercase">Precio</th>
                                         <th className="px-4 py-2 text-center text-xs font-medium text-slate-400 uppercase">Stock</th>
+                                        <th className="px-4 py-2 text-center text-xs font-medium text-slate-400 uppercase w-40">Cantidad</th>
                                         <th className="px-4 py-2 text-center text-xs font-medium text-slate-400 uppercase">Acción</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-700/50">
-                                    {filteredProducts.map(product => (
-                                        <tr key={`${product.sourceType}-${product.id}`} className="hover:bg-slate-700/30 transition-colors cursor-pointer" onClick={() => addToCart(product)}>
-                                            <td className="px-4 py-2 text-slate-400 font-mono text-sm">{product.id}</td>
-                                            <td className="px-4 py-2 text-white text-sm">{product.name}</td>
-                                            <td className="px-4 py-2 text-right text-white font-medium">${(product.unitPrice || 0).toLocaleString('es-AR')}</td>
-                                            <td className="px-4 py-2 text-center">
-                                                <span className={`text-xs px-2 py-0.5 rounded ${(product.stock || 0) > 0 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
-                                                    {product.stock ?? '-'}
-                                                </span>
-                                            </td>
-                                            <td className="px-4 py-2 text-center">
-                                                <Button size="sm" className="bg-orange-600 hover:bg-orange-700 h-7 px-3 text-xs" onClick={(e) => { e.stopPropagation(); addToCart(product); }}>
-                                                    <Plus className="w-3 h-3 mr-1" /> Agregar
-                                                </Button>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                    {filteredProducts.map(product => {
+                                        const key = `${product.sourceType}-${product.id}`;
+                                        return (
+                                            <tr key={key} className="hover:bg-slate-700/30 transition-colors">
+                                                <td className="px-4 py-2 text-slate-400 font-mono text-sm">{product.id}</td>
+                                                <td className="px-4 py-2 text-white text-sm">{product.name}</td>
+                                                <td className="px-4 py-2 text-right text-white font-medium">${(product.unitPrice || 0).toLocaleString('es-AR')}</td>
+                                                <td className="px-4 py-2 text-center">
+                                                    <span className={`text-xs px-2 py-0.5 rounded ${(product.stock || 0) > 0 ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                                                        {product.stock ?? '-'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-2 text-center">
+                                                    <input
+                                                        type="number"
+                                                        min="1"
+                                                        placeholder="1"
+                                                        value={quantities[key] || ''}
+                                                        onChange={(e) => setQuantities(prev => ({ ...prev, [key]: e.target.value }))}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') {
+                                                                e.preventDefault();
+                                                                addToCart(product, quantities[key] || 1);
+                                                            }
+                                                        }}
+                                                        className="w-20 bg-slate-900 border border-slate-600 rounded-lg px-2 py-1 text-white text-center text-sm focus:ring-2 focus:ring-orange-500 outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                        onClick={(e) => e.stopPropagation()}
+                                                    />
+                                                </td>
+                                                <td className="px-4 py-2 text-center">
+                                                    <Button
+                                                        size="sm"
+                                                        className="bg-orange-600 hover:bg-orange-700 h-7 px-3 text-xs"
+                                                        onClick={(e) => { e.stopPropagation(); addToCart(product, quantities[key] || 1); }}
+                                                    >
+                                                        <Plus className="w-3 h-3 mr-1" /> Agregar
+                                                    </Button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                     {filteredProducts.length === 0 && (
-                                        <tr><td colSpan="5" className="text-center py-8 text-slate-500">No se encontraron productos.</td></tr>
+                                        <tr><td colSpan="6" className="text-center py-8 text-slate-500">No se encontraron productos.</td></tr>
                                     )}
                                 </tbody>
                             </table>
@@ -227,55 +243,43 @@ const CounterSale = () => {
                                 <span className="text-slate-300 font-medium">Total:</span>
                                 <span className="text-3xl font-bold text-white">${cartTotal.toLocaleString('es-AR')}</span>
                             </div>
-                            <div className="space-y-4">
-                                <div className="space-y-2 border-b border-slate-700 pb-4">
-                                    <Button
-                                        onClick={() => handleCheckout(false)}
-                                        disabled={cart.length === 0}
-                                        className="w-full bg-green-600 hover:bg-green-700 h-10 text-base font-semibold disabled:opacity-50"
-                                    >
-                                        <CreditCard className="w-5 h-5 mr-2" />
-                                        Facturar
-                                    </Button>
-                                    <Button
-                                        onClick={() => handleCheckout(true)}
-                                        disabled={cart.length === 0}
-                                        className="w-full bg-blue-600 hover:bg-blue-700 h-10 text-base font-semibold disabled:opacity-50"
-                                    >
-                                        <Package className="w-5 h-5 mr-2" />
-                                        Facturar y Generar PDF (Depósito)
-                                    </Button>
-                                </div>
-                                <div className="pt-2">
-                                    <Button
-                                        onClick={async () => {
-                                            if (cart.length === 0) return;
-                                            const items = cart.map(item => ({
-                                                ...item,
-                                                quantity: item.quantity,
-                                                unitPrice: item.unitPrice,
-                                                subtotal: item.unitPrice * item.quantity,
-                                            }));
-                                            const mockQuote = {
-                                                id: 'MOSTRADOR',
-                                                quoteNumber: 'MOST',
-                                                date: new Date().toISOString(),
-                                                materials: items,
-                                                manualMaterials: [],
-                                                total: cartTotal,
-                                                summary: { tipoPoste: 'Venta Directa', altura: '-', tejido: '-' }
-                                            };
-                                            const clientInfo = clientName.trim() ? { name: clientName.trim() } : { name: 'Consumidor Final' };
-                                            await generateQuotePDF(mockQuote, clientInfo, null);
-                                        }}
-                                        disabled={cart.length === 0}
-                                        variant="outline"
-                                        className="w-full border-slate-600 hover:bg-slate-700 text-slate-200 h-10"
-                                    >
-                                        <FileText className="w-5 h-5 mr-2" />
-                                        Imprimir Presupuesto Cliente
-                                    </Button>
-                                </div>
+                            <div className="space-y-2">
+                                <Button
+                                    onClick={handleCheckout}
+                                    disabled={cart.length === 0}
+                                    className="w-full bg-green-600 hover:bg-green-700 h-10 text-base font-semibold disabled:opacity-50"
+                                >
+                                    <CheckCircle className="w-5 h-5 mr-2" />
+                                    Registrar Venta
+                                </Button>
+                                <Button
+                                    onClick={async () => {
+                                        if (cart.length === 0) return;
+                                        const items = cart.map(item => ({
+                                            ...item,
+                                            quantity: item.quantity,
+                                            unitPrice: item.unitPrice,
+                                            subtotal: item.unitPrice * item.quantity,
+                                        }));
+                                        const mockQuote = {
+                                            id: 'MOSTRADOR',
+                                            quoteNumber: 'MOST',
+                                            date: new Date().toISOString(),
+                                            materials: items,
+                                            manualMaterials: [],
+                                            total: cartTotal,
+                                            summary: { tipoPoste: 'Venta Directa', altura: '-', tejido: '-' }
+                                        };
+                                        const clientInfo = clientName.trim() ? { name: clientName.trim() } : { name: 'Consumidor Final' };
+                                        await generateQuotePDF(mockQuote, clientInfo, null);
+                                    }}
+                                    disabled={cart.length === 0}
+                                    variant="outline"
+                                    className="w-full border-slate-600 hover:bg-slate-700 text-slate-200 h-10"
+                                >
+                                    <FileText className="w-5 h-5 mr-2" />
+                                    Imprimir Presupuesto Cliente
+                                </Button>
                             </div>
                         </div>
                     </div>

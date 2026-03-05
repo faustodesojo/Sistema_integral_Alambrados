@@ -1,20 +1,28 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { FileText, Printer, RefreshCw, Image as ImageIcon, Download, Hash, Package, ExternalLink } from 'lucide-react';
+import { FileText, Printer, RefreshCw, Image as ImageIcon, Download, Hash, Package, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { useAppContext } from '@/context/AppContext';
 import { generateQuotePDF } from '@/utils/PDFGenerator';
+import { generateWarehousePDF } from '@/utils/WarehousePDFGenerator';
 import WarehouseOrderModal from '@/components/WarehouseOrderModal';
 import { useNavigate } from 'react-router-dom';
 
 const QuoteDisplay = ({ quote, onReset }) => {
   const { toast } = useToast();
-  const { createOrder, createWarehouseOrder, warehouseOrders } = useAppContext();
+  const { createOrder, createWarehouseOrder, warehouseOrders, registerQuoteSale, presupuestos } = useAppContext();
   const [isWarehouseModalOpen, setIsWarehouseModalOpen] = useState(false);
+  const [salePaymentMethod, setSalePaymentMethod] = useState('Efectivo');
+  const [showSaleConfirm, setShowSaleConfirm] = useState(false);
   const navigate = useNavigate();
 
   if (!quote) return null;
+
+  // Get live quote data (for status updates)
+  const liveQuote = presupuestos.find(p => p.id === quote.id) || quote;
+  const isSold = liveQuote.status === 'Vendido';
+  const isSaved = !!(quote.quoteNumber || quote.id);
 
   const calculatedItems = quote.calculatedMaterials || quote.materials || [];
   const manualItems = quote.manualMaterials || [];
@@ -56,14 +64,24 @@ const QuoteDisplay = ({ quote, onReset }) => {
   };
 
   const handleCreateWarehouseOrder = (itemsToOrder, type) => {
-    // 1. Create Sales Order (Confirms the Sale if not exists logic can be here, simplifying for now)
+    const quoteId = quote.id || quote.quoteNumber;
+    if (!quoteId) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Debe guardar el presupuesto antes de generar una orden de depósito.",
+      });
+      return;
+    }
+
+    // Create Sales Order (legacy support)
     const newOrder = createOrder(quote);
 
-    // 2. Create Warehouse Order (Triggers Preparation)
+    // Create Warehouse Order (ya se crea como Completada y descuenta stock)
     const newWarehouseOrder = createWarehouseOrder({
       orderId: newOrder.id,
-      quoteId: quote.id,
-      quoteNumber: quote.quoteNumber,
+      quoteId: quoteId,
+      quoteNumber: quote.quoteNumber || quote.id,
       clientName: quote.clientData?.name,
       items: itemsToOrder,
       type: type
@@ -72,11 +90,12 @@ const QuoteDisplay = ({ quote, onReset }) => {
     setIsWarehouseModalOpen(false);
 
     if (newWarehouseOrder) {
+      // Generar e imprimir PDF automáticamente
+      generateWarehousePDF(newWarehouseOrder);
       toast({
-        title: "Orden Creada",
-        description: `Orden de depósito #${newWarehouseOrder.number} (${type === 'partial' ? 'Parcial' : 'Completa'}) generada.`,
+        title: "Orden Generada",
+        description: `Orden #${newWarehouseOrder.number} creada, stock descontado y PDF descargado.`,
       });
-      // Redirect to warehouse orders section after successful creation
       navigate('/warehouse-orders');
     } else {
       toast({
@@ -84,6 +103,13 @@ const QuoteDisplay = ({ quote, onReset }) => {
         title: "Error",
         description: "No se pudo crear la orden.",
       });
+    }
+  };
+
+  const handleRegisterSale = () => {
+    const success = registerQuoteSale(quote.id, salePaymentMethod);
+    if (success) {
+      setShowSaleConfirm(false);
     }
   };
 
@@ -99,13 +125,19 @@ const QuoteDisplay = ({ quote, onReset }) => {
           <div>
             <h2 className="text-2xl font-bold text-white flex items-center gap-2">
               <FileText className="w-6 h-6 text-orange-500" />
-              Detalle de Presupuesto
+              Presupuesto
+              {(quote.quoteNumber || quote.id) && (
+                <span className="text-orange-400 font-mono">#{String(quote.quoteNumber || quote.id).padStart(3, '0')}</span>
+              )}
             </h2>
             <div className="flex items-center gap-2 mt-1">
-              <div className="flex items-center gap-1 text-slate-400 text-sm bg-slate-900/50 px-2 py-0.5 rounded border border-slate-700/50">
-                <Hash className="w-3 h-3" />
-                <span className="font-mono">#{quote.quoteNumber ? String(quote.quoteNumber).padStart(3, '0') : String(quote.id).slice(0, 8).toUpperCase()}</span>
-              </div>
+
+              {isSold && (
+                <span className="flex items-center gap-1 bg-green-900/30 text-green-400 px-2 py-0.5 rounded border border-green-500/30 text-xs font-medium">
+                  <CheckCircle className="w-3 h-3" />
+                  Vendido
+                </span>
+              )}
 
               {hasOrders && (
                 <div
@@ -119,32 +151,56 @@ const QuoteDisplay = ({ quote, onReset }) => {
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button
-              onClick={() => setIsWarehouseModalOpen(true)}
-              size="sm"
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              <Package className="w-4 h-4 mr-2" />
-              Realizar Orden
-            </Button>
-            <Button
-              onClick={handlePrint}
-              size="sm"
-              variant="outline"
-              className="border-slate-700 hover:bg-slate-700"
-            >
-              <Printer className="w-4 h-4 mr-2" />
-              Imprimir
-            </Button>
-            <Button
-              onClick={handleDownloadPDF}
-              size="sm"
-              variant="outline"
-              className="border-slate-700 hover:bg-slate-700"
-            >
-              <Download className="w-4 h-4 mr-2" />
-              PDF
-            </Button>
+            {/* Registrar Venta - solo si está guardado */}
+            {isSaved && (
+              !isSold ? (
+                <Button
+                  onClick={() => setShowSaleConfirm(true)}
+                  size="sm"
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Registrar Venta
+                </Button>
+              ) : (
+                <span className="flex items-center gap-1 text-green-400 text-sm font-medium bg-green-900/20 px-3 py-1.5 rounded border border-green-500/20">
+                  <CheckCircle className="w-4 h-4" />
+                  Venta Registrada
+                </span>
+              )
+            )}
+            {isSaved && (
+              <Button
+                onClick={() => setIsWarehouseModalOpen(true)}
+                size="sm"
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <Package className="w-4 h-4 mr-2" />
+                Realizar Orden
+              </Button>
+            )}
+            {isSaved && (
+              <>
+                <Button
+                  onClick={handlePrint}
+                  size="sm"
+                  variant="outline"
+                  className="border-slate-700 hover:bg-slate-700"
+                >
+                  <Printer className="w-4 h-4 mr-2" />
+                  Imprimir
+                </Button>
+                <Button
+                  onClick={handleDownloadPDF}
+                  size="sm"
+                  variant="outline"
+                  className="border-slate-700 hover:bg-slate-700"
+                >
+                  <Download className="w-4 h-4 mr-2" />
+                  PDF
+                </Button>
+              </>
+            )}
             {onReset && (
               <Button
                 onClick={onReset}
@@ -158,6 +214,44 @@ const QuoteDisplay = ({ quote, onReset }) => {
             )}
           </div>
         </div>
+
+        {/* Sale Confirmation Panel */}
+        {showSaleConfirm && !isSold && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            className="bg-green-900/20 border border-green-500/30 rounded-xl p-4 overflow-hidden"
+          >
+            <h3 className="text-white font-semibold mb-3 flex items-center gap-2">
+              <CheckCircle className="w-5 h-5 text-green-400" />
+              Confirmar Venta — ${(quote.total || 0).toLocaleString('es-AR')}
+            </h3>
+            <div className="flex items-center gap-4">
+              <div>
+                <label className="text-slate-300 text-xs block mb-1">Método de Pago</label>
+                <select
+                  value={salePaymentMethod}
+                  onChange={(e) => setSalePaymentMethod(e.target.value)}
+                  className="bg-slate-900 border border-slate-700 rounded-lg p-2 text-white text-sm focus:ring-2 focus:ring-green-500 outline-none min-w-[180px]"
+                >
+                  <option value="Efectivo">Efectivo</option>
+                  <option value="Transferencia">Transferencia</option>
+                  <option value="Tarjeta">Tarjeta</option>
+                  <option value="Cuenta Corriente">Cuenta Corriente</option>
+                </select>
+              </div>
+              <div className="flex gap-2 mt-4">
+                <Button onClick={handleRegisterSale} className="bg-green-600 hover:bg-green-700">
+                  <CheckCircle className="w-4 h-4 mr-2" />
+                  Confirmar
+                </Button>
+                <Button onClick={() => setShowSaleConfirm(false)} variant="outline" className="border-slate-600 hover:bg-slate-700 text-slate-300">
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          </motion.div>
+        )}
 
         {/* Client Info Section */}
         {quote.clientData && (

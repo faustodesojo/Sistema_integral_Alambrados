@@ -6,7 +6,7 @@ import Navigation from '@/components/Navigation';
 import SalesDashboard from '@/pages/SalesDashboard';
 import AdminDashboard from '@/pages/AdminDashboard';
 import LoginPage from '@/pages/LoginPage';
-import SalesOrders from '@/pages/SalesOrders';
+
 import WarehouseOrders from '@/pages/WarehouseOrders';
 import Returns from '@/pages/Returns';
 import Payments from '@/pages/Payments';
@@ -46,11 +46,7 @@ function App() {
                                 <QuoteHistory />
                             </ProtectedRoute>
                         } />
-                        <Route path="/sales-orders" element={
-                            <ProtectedRoute allowedRoles={['admin', 'sales']}>
-                                <SalesOrders />
-                            </ProtectedRoute>
-                        } />
+
                         <Route path="/returns" element={
                             <ProtectedRoute allowedRoles={['admin', 'sales']}>
                                 <Returns />

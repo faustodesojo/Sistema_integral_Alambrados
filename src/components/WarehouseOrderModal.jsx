@@ -224,7 +224,7 @@ const WarehouseOrderModal = ({ isOpen, onClose, quote, onConfirm }) => {
               </Button>
               <Button onClick={handleConfirm} className="bg-blue-600 hover:bg-blue-700 text-white">
                 <CheckCircle2 className="w-4 h-4 mr-2" />
-                Confirmar Orden
+                Generar Orden e Imprimir
               </Button>
             </div>
           </div>

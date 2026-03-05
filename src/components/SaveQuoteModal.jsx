@@ -6,7 +6,7 @@ import { useAppContext } from '@/context/AppContext';
 
 const SaveQuoteModal = ({ isOpen, onClose, currentQuoteData, onConfirm, isEditing }) => {
   const { clientData, updateClientData, generateQuoteId } = useAppContext();
-  
+
   const [phone, setPhone] = useState(clientData.phone || '');
   const [errors, setErrors] = useState({});
   const [previewId, setPreviewId] = useState('');
@@ -28,26 +28,23 @@ const SaveQuoteModal = ({ isOpen, onClose, currentQuoteData, onConfirm, isEditin
   }, [isOpen, isEditing, currentQuoteData, generateQuoteId]);
 
   const validate = () => {
-    const newErrors = {};
-    if (!clientData.name?.trim()) newErrors.name = "El nombre es obligatorio (ingresar en panel superior)";
-    if (!clientData.address?.trim()) newErrors.address = "La dirección es obligatoria (ingresar en panel superior)";
-    if (!phone.trim()) newErrors.phone = "El teléfono es obligatorio";
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    // Nombre, dirección y teléfono son opcionales
+    setErrors({});
+    return true;
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!validate()) return;
-    
+
     updateClientData('phone', phone);
-    
+
     // Pass the generated ID back so it can be used for creation
     const finalData = {
       ...currentQuoteData,
       id: isEditing ? currentQuoteData.id : previewId
     };
-    
+
     onConfirm(finalData);
   };
 
@@ -79,7 +76,7 @@ const SaveQuoteModal = ({ isOpen, onClose, currentQuoteData, onConfirm, isEditin
                 <span className="text-xs text-slate-400 uppercase tracking-wider">ID de Referencia:</span>
                 <span className="text-white font-mono text-sm ml-auto">{previewId.slice(0, 12)}...</span>
               </div>
-              
+
               <div className="flex items-start gap-3">
                 <User className="w-4 h-4 text-slate-400 mt-1" />
                 <div>
@@ -101,7 +98,7 @@ const SaveQuoteModal = ({ isOpen, onClose, currentQuoteData, onConfirm, isEditin
             <div>
               <label className="block text-sm font-medium text-slate-300 mb-2 flex items-center gap-2">
                 <Phone className="w-4 h-4" />
-                Teléfono de Contacto <span className="text-red-500">*</span>
+                Teléfono de Contacto <span className="text-slate-500 text-xs">(opcional)</span>
               </label>
               <input
                 type="text"

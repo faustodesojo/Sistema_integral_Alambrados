@@ -1,26 +1,50 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Helmet } from 'react-helmet';
-import { DollarSign, CreditCard, Banknote, Wallet } from 'lucide-react';
+import { DollarSign, CreditCard, Banknote, Wallet, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAppContext } from '@/context/AppContext';
 
 const Payments = () => {
-    const { payments, orders, createPayment } = useAppContext();
-    const [formData, setFormData] = useState({ orderId: '', amount: '', method: 'Efectivo' });
+    const { payments, presupuestos, createPayment } = useAppContext();
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedQuote, setSelectedQuote] = useState(null);
+    const [formData, setFormData] = useState({ amount: '', method: 'Efectivo' });
+
+    // Filter presupuestos by search term
+    const filteredQuotes = useMemo(() => {
+        if (!searchTerm.trim()) return [];
+        const term = searchTerm.toLowerCase();
+        return presupuestos.filter(p => {
+            const name = (p.clientData?.name || '').toLowerCase();
+            const qNum = String(p.quoteNumber || p.id || '').toLowerCase();
+            return name.includes(term) || qNum.includes(term);
+        }).slice(0, 10);
+    }, [presupuestos, searchTerm]);
+
+    const handleSelectQuote = (quote) => {
+        setSelectedQuote(quote);
+        setSearchTerm('');
+        // Pre-fill the remaining balance
+        const remaining = (quote.total || 0) - (quote.paid || 0);
+        setFormData(prev => ({ ...prev, amount: remaining > 0 ? remaining.toString() : '' }));
+    };
 
     const handleRegister = (e) => {
         e.preventDefault();
-        const order = orders.find(o => o.id === formData.orderId);
-        if (!order) return;
+        if (!selectedQuote) return;
+        const amount = parseFloat(formData.amount);
+        if (!amount || amount <= 0) return;
 
         createPayment({
-            orderId: formData.orderId,
-            orderNumber: order.orderNumber,
-            amount: parseFloat(formData.amount),
+            quoteId: selectedQuote.id,
+            quoteNumber: selectedQuote.quoteNumber,
+            amount: amount,
             method: formData.method,
-            clientName: order.client?.name || 'Consumidor Final'
+            clientName: selectedQuote.clientData?.name || 'Consumidor Final'
         });
-        setFormData({ orderId: '', amount: '', method: 'Efectivo' });
+
+        setSelectedQuote(null);
+        setFormData({ amount: '', method: 'Efectivo' });
     };
 
     const totalPaid = payments.reduce((acc, curr) => acc + (curr.amount || 0), 0);
@@ -68,24 +92,69 @@ const Payments = () => {
                         <DollarSign className="text-green-500" /> Registrar Pago
                     </h2>
                     <form onSubmit={handleRegister} className="space-y-4">
+                        {/* Search by quote/client */}
+                        {!selectedQuote ? (
+                            <div className="relative">
+                                <label className="text-slate-300 block mb-1 text-sm">Buscar Presupuesto o Cliente</label>
+                                <div className="relative">
+                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                                    <input
+                                        type="text"
+                                        placeholder="Nombre del cliente o nro. de presupuesto..."
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="w-full bg-slate-900 border border-slate-700 rounded-lg pl-10 pr-4 py-3 text-white focus:ring-2 focus:ring-orange-500 outline-none"
+                                    />
+                                </div>
+                                {filteredQuotes.length > 0 && (
+                                    <div className="absolute z-10 w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg shadow-xl max-h-60 overflow-y-auto">
+                                        {filteredQuotes.map(q => {
+                                            const remaining = (q.total || 0) - (q.paid || 0);
+                                            return (
+                                                <button
+                                                    key={q.id}
+                                                    type="button"
+                                                    onClick={() => handleSelectQuote(q)}
+                                                    className="w-full text-left px-4 py-3 hover:bg-slate-700 transition-colors border-b border-slate-700/50 last:border-0"
+                                                >
+                                                    <div className="flex justify-between items-center">
+                                                        <div>
+                                                            <span className="text-white font-medium">{q.clientData?.name || 'Sin nombre'}</span>
+                                                            <span className="text-slate-400 text-xs ml-2">#{String(q.quoteNumber || q.id).padStart(3, '0')}</span>
+                                                            {q.status === 'Vendido' && <span className="ml-2 text-green-400 text-xs font-medium">Vendido</span>}
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <div className="text-orange-400 font-bold text-sm">${(q.total || 0).toLocaleString('es-AR')}</div>
+                                                            {remaining > 0 && <div className="text-yellow-400 text-xs">Saldo: ${remaining.toLocaleString('es-AR')}</div>}
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="bg-slate-900 border border-orange-500/30 rounded-lg p-3">
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <span className="text-white font-bold">{selectedQuote.clientData?.name || 'Sin nombre'}</span>
+                                        <span className="text-slate-400 text-xs ml-2">#{String(selectedQuote.quoteNumber || selectedQuote.id).padStart(3, '0')}</span>
+                                    </div>
+                                    <Button type="button" size="sm" variant="outline" onClick={() => setSelectedQuote(null)} className="border-slate-600 text-slate-300 hover:bg-slate-700 h-7 text-xs">
+                                        Cambiar
+                                    </Button>
+                                </div>
+                                <div className="flex justify-between mt-2 text-sm">
+                                    <span className="text-slate-400">Total: <span className="text-white font-medium">${(selectedQuote.total || 0).toLocaleString('es-AR')}</span></span>
+                                    <span className="text-slate-400">Pagado: <span className="text-green-400 font-medium">${(selectedQuote.paid || 0).toLocaleString('es-AR')}</span></span>
+                                    <span className="text-slate-400">Saldo: <span className="text-yellow-400 font-bold">${((selectedQuote.total || 0) - (selectedQuote.paid || 0)).toLocaleString('es-AR')}</span></span>
+                                </div>
+                            </div>
+                        )}
+
                         <div>
-                            <label className="text-slate-300 block mb-1 text-sm">Orden de Venta</label>
-                            <select
-                                value={formData.orderId}
-                                onChange={e => setFormData({ ...formData, orderId: e.target.value })}
-                                className="w-full bg-slate-900 border border-slate-700 rounded-lg p-3 text-white focus:ring-2 focus:ring-orange-500 outline-none"
-                                required
-                            >
-                                <option value="">Seleccionar Orden Pendiente</option>
-                                {orders.map(o => (
-                                    <option key={o.id} value={o.id}>
-                                        {o.orderNumber} - {o.client?.name || 'Sin nombre'} (Saldo: ${((o.total || 0) - (o.paid || 0)).toLocaleString('es-AR')})
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        <div>
-                            <label className="text-slate-300 block mb-1 text-sm">Monto</label>
+                            <label className="text-slate-300 block mb-1 text-sm">Monto a Pagar</label>
                             <input
                                 type="number"
                                 value={formData.amount}
@@ -111,7 +180,7 @@ const Payments = () => {
                                 <option value="Cuenta Corriente">Cuenta Corriente</option>
                             </select>
                         </div>
-                        <Button type="submit" className="w-full bg-green-600 hover:bg-green-700 h-12 text-lg">
+                        <Button type="submit" disabled={!selectedQuote} className="w-full bg-green-600 hover:bg-green-700 h-12 text-lg disabled:opacity-50">
                             Confirmar Pago
                         </Button>
                     </form>
@@ -126,7 +195,7 @@ const Payments = () => {
                         <thead className="bg-slate-900">
                             <tr>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Fecha</th>
-                                <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Orden</th>
+                                <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Presupuesto</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Cliente</th>
                                 <th className="px-4 py-3 text-left text-xs font-medium text-slate-400 uppercase">Método</th>
                                 <th className="px-4 py-3 text-right text-xs font-medium text-slate-400 uppercase">Monto</th>
@@ -136,7 +205,7 @@ const Payments = () => {
                             {payments.map(pay => (
                                 <tr key={pay.id} className="hover:bg-slate-700/30 transition-colors">
                                     <td className="px-4 py-3 text-slate-400 text-sm">{new Date(pay.date).toLocaleDateString()}</td>
-                                    <td className="px-4 py-3 text-slate-300 font-mono text-sm">{pay.orderNumber}</td>
+                                    <td className="px-4 py-3 text-slate-300 font-mono text-sm">#{String(pay.quoteNumber || pay.orderNumber || '-').padStart(3, '0')}</td>
                                     <td className="px-4 py-3 text-white font-medium">{pay.clientName || '-'}</td>
                                     <td className="px-4 py-3 text-slate-300 flex items-center gap-2">
                                         {getMethodIcon(pay.method)}

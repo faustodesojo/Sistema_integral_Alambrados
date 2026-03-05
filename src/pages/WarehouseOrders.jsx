@@ -17,7 +17,6 @@ const WarehouseOrders = () => {
     const { toast } = useToast();
 
     const [searchTerm, setSearchTerm] = useState('');
-    const [statusFilter, setStatusFilter] = useState('all');
     const [selectedOrder, setSelectedOrder] = useState(null);
 
     const filteredOrders = warehouseOrders.filter(order => {
@@ -26,9 +25,7 @@ const WarehouseOrders = () => {
             (order.clientName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
             (String(order.quoteId) || '').includes(searchTerm);
 
-        const matchesStatus = statusFilter === 'all' || order.status === statusFilter;
-
-        return matchesSearch && matchesStatus;
+        return matchesSearch;
     });
 
     const handleDelete = (id) => {
@@ -38,19 +35,7 @@ const WarehouseOrders = () => {
         }
     };
 
-    const getStatusBadge = (status) => {
-        const styles = {
-            'Pendiente': 'bg-yellow-500/20 text-yellow-500 border-yellow-500/30',
-            'En Preparación': 'bg-blue-500/20 text-blue-500 border-blue-500/30',
-            'Completada': 'bg-green-500/20 text-green-500 border-green-500/30',
-            'Cancelada': 'bg-red-500/20 text-red-500 border-red-500/30'
-        };
-        return (
-            <span className={`px-2 py-0.5 rounded text-xs border font-medium ${styles[status] || 'text-slate-400'}`}>
-                {status}
-            </span>
-        );
-    };
+
 
     return (
         <div className="min-h-screen bg-slate-900 p-6">
@@ -77,20 +62,6 @@ const WarehouseOrders = () => {
                             className="pl-9 bg-slate-900 border-slate-700 text-white placeholder:text-slate-500"
                         />
                     </div>
-
-                    <div className="flex gap-2 w-full md:w-auto overflow-x-auto pb-2 md:pb-0">
-                        {['all', 'Pendiente', 'En Preparación', 'Completada', 'Cancelada'].map(status => (
-                            <Button
-                                key={status}
-                                variant={statusFilter === status ? "default" : "outline"}
-                                onClick={() => setStatusFilter(status)}
-                                size="sm"
-                                className={`whitespace-nowrap ${statusFilter === status ? 'bg-orange-600 hover:bg-orange-700' : 'border-slate-700 text-slate-300'}`}
-                            >
-                                {status === 'all' ? 'Todas' : status}
-                            </Button>
-                        ))}
-                    </div>
                 </div>
 
                 <div className="bg-slate-800 border border-slate-700 rounded-xl overflow-hidden shadow-xl">
@@ -102,7 +73,6 @@ const WarehouseOrders = () => {
                                 <TableHead className="text-slate-400">Ref. Presup.</TableHead>
                                 <TableHead className="text-slate-400">Fecha</TableHead>
                                 <TableHead className="text-slate-400 text-center">Ítems</TableHead>
-                                <TableHead className="text-slate-400">Tipo</TableHead>
                                 <TableHead className="text-slate-400">Estado</TableHead>
                                 <TableHead className="text-right text-slate-400">Acciones</TableHead>
                             </TableRow>
@@ -110,7 +80,7 @@ const WarehouseOrders = () => {
                         <TableBody>
                             {filteredOrders.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={8} className="text-center py-12 text-slate-500">
+                                    <TableCell colSpan={7} className="text-center py-12 text-slate-500">
                                         No se encontraron órdenes
                                     </TableCell>
                                 </TableRow>
@@ -132,11 +102,8 @@ const WarehouseOrders = () => {
                                             {order.items.length}
                                         </TableCell>
                                         <TableCell>
-                                            <span className={`text-xs px-2 py-0.5 rounded ${order.type === 'partial' ? 'bg-purple-500/20 text-purple-400' : 'bg-slate-700 text-slate-300'}`}>
-                                                {order.type === 'partial' ? 'Parcial' : 'Completa'}
-                                            </span>
+                                            <span className="text-xs px-2 py-0.5 rounded bg-green-500/20 text-green-500 border border-green-500/30 font-medium">Completada</span>
                                         </TableCell>
-                                        <TableCell>{getStatusBadge(order.status)}</TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex items-center justify-end gap-1">
                                                 <Button

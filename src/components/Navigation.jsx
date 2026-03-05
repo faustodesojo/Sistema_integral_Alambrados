@@ -85,12 +85,7 @@ const Navigation = () => {
                                     </Link>
                                 )}
 
-                                {canSee(['admin', 'sales']) && (
-                                    <Link to="/sales-orders" className={navLinkClass('/sales-orders')}>
-                                        <ShoppingCart className="w-3.5 h-3.5" />
-                                        <span className="hidden lg:inline">Órdenes</span>
-                                    </Link>
-                                )}
+
 
                                 {canSee(['admin', 'sales', 'warehouse']) && (
                                     <Link to="/warehouse-orders" className="relative">

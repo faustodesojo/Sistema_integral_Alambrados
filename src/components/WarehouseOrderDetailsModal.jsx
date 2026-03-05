@@ -1,36 +1,17 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Package, FileText, Download, Calendar, CheckSquare, Clock, Truck, Ban } from 'lucide-react';
+import { X, Package, FileText, Download, Calendar, CheckCircle2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { generateWarehousePDF } from '@/utils/WarehousePDFGenerator';
-import { useAppContext } from '@/context/AppContext';
 
 const WarehouseOrderDetailsModal = ({ isOpen, onClose, order }) => {
-  const { updateWarehouseOrder } = useAppContext();
-
   if (!isOpen || !order) return null;
 
   const handleDownloadPDF = () => {
     generateWarehousePDF(order);
-  };
-
-  const handleStatusChange = (newStatus) => {
-    updateWarehouseOrder(order.id, { status: newStatus });
-    // Force simple update of local order object for UI reactivity if parent doesn't auto-update
-    order.status = newStatus;
-  };
-
-  const getStatusColor = (s) => {
-    switch (s) {
-      case 'Pendiente': return 'text-yellow-500 bg-yellow-500/10 border-yellow-500/20';
-      case 'En Preparación': return 'text-blue-500 bg-blue-500/10 border-blue-500/20';
-      case 'Completada': return 'text-green-500 bg-green-500/10 border-green-500/20';
-      case 'Cancelada': return 'text-red-500 bg-red-500/10 border-red-500/20';
-      default: return 'text-slate-500';
-    }
   };
 
   return (
@@ -51,8 +32,9 @@ const WarehouseOrderDetailsModal = ({ isOpen, onClose, order }) => {
               <div>
                 <h2 className="text-2xl font-bold text-white flex items-center gap-3">
                   Orden #{order.number}
-                  <span className={`text-xs px-2 py-1 rounded border ${getStatusColor(order.status)}`}>
-                    {order.status.toUpperCase()}
+                  <span className="text-xs px-2 py-1 rounded border text-green-500 bg-green-500/10 border-green-500/20 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3" />
+                    COMPLETADA
                   </span>
                 </h2>
                 <div className="flex items-center gap-4 mt-2 text-sm text-slate-400">
@@ -71,30 +53,6 @@ const WarehouseOrderDetailsModal = ({ isOpen, onClose, order }) => {
           </div>
 
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
-
-            {/* Timeline */}
-            <div className="flex justify-between items-center bg-slate-800/50 p-4 rounded-lg border border-slate-700">
-              {['Pendiente', 'En Preparación', 'Completada'].map((step, idx) => {
-                const isActive = step === order.status;
-                const isPast = ['Pendiente', 'En Preparación', 'Completada'].indexOf(order.status) >= idx;
-                return (
-                  <div key={step} className="flex flex-col items-center gap-2 flex-1 relative">
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 z-10 bg-slate-900 ${isPast ? 'border-green-500 text-green-500' : 'border-slate-600 text-slate-600'
-                      }`}>
-                      {idx === 0 && <Clock className="w-4 h-4" />}
-                      {idx === 1 && <Truck className="w-4 h-4" />}
-                      {idx === 2 && <CheckSquare className="w-4 h-4" />}
-                    </div>
-                    <span className={`text-xs font-medium ${isPast ? 'text-green-500' : 'text-slate-600'}`}>{step}</span>
-
-                    {idx < 2 && (
-                      <div className={`absolute top-4 left-[50%] w-full h-0.5 ${['Pendiente', 'En Preparación', 'Completada'].indexOf(order.status) > idx ? 'bg-green-500' : 'bg-slate-700'
-                        }`} />
-                    )}
-                  </div>
-                );
-              })}
-            </div>
 
             {/* Content Grid */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -145,29 +103,16 @@ const WarehouseOrderDetailsModal = ({ isOpen, onClose, order }) => {
                     <Download className="w-4 h-4 mr-2" />
                     Descargar PDF
                   </Button>
+                </div>
 
-                  <div className="h-px bg-slate-700 my-2" />
-
-                  {order.status === 'Pendiente' && (
-                    <Button onClick={() => handleStatusChange('En Preparación')} className="w-full bg-blue-600 hover:bg-blue-700 justify-start">
-                      <Truck className="w-4 h-4 mr-2" />
-                      Comenzar Preparación
-                    </Button>
-                  )}
-
-                  {order.status === 'En Preparación' && (
-                    <Button onClick={() => handleStatusChange('Completada')} className="w-full bg-green-600 hover:bg-green-700 justify-start">
-                      <CheckSquare className="w-4 h-4 mr-2" />
-                      Marcar Completada
-                    </Button>
-                  )}
-
-                  {order.status !== 'Cancelada' && order.status !== 'Completada' && (
-                    <Button onClick={() => handleStatusChange('Cancelada')} variant="ghost" className="w-full text-red-400 hover:bg-red-500/10 justify-start">
-                      <Ban className="w-4 h-4 mr-2" />
-                      Cancelar Orden
-                    </Button>
-                  )}
+                <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-4">
+                  <div className="flex items-center gap-2 text-green-400 text-sm font-medium">
+                    <CheckCircle2 className="w-4 h-4" />
+                    Stock descontado automáticamente
+                  </div>
+                  <p className="text-green-400/70 text-xs mt-1">
+                    El stock fue descontado al momento de generar esta orden.
+                  </p>
                 </div>
               </div>
             </div>

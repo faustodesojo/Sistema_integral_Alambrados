@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Eye, Edit, Download, Trash2, Calendar, User, FileText, Hash, Copy } from 'lucide-react';
+import { Eye, Edit, Download, Trash2, Calendar, User, FileText, Hash, Copy, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import {
@@ -18,10 +18,10 @@ const QuoteListTable = ({ quotes, onView, onEdit, onDownload, onDelete }) => {
   const formatQuoteId = (id) => {
     // If it's a number-like string or number, pad it
     if (!isNaN(id)) {
-        return `#${String(id).padStart(3, '0')}`;
+      return `#${String(id).padStart(3, '0')}`;
     }
     // Fallback for old UUIDs
-    return '#' + String(id).substring(0,6);
+    return '#' + String(id).substring(0, 6);
   };
 
   const copyToClipboard = (text) => {
@@ -41,6 +41,7 @@ const QuoteListTable = ({ quotes, onView, onEdit, onDownload, onDelete }) => {
             <TableHead className="text-slate-400 font-medium">Cliente</TableHead>
             <TableHead className="text-slate-400 font-medium">Fecha</TableHead>
             <TableHead className="text-slate-400 font-medium text-right">Monto Total</TableHead>
+            <TableHead className="text-slate-400 font-medium text-center w-[100px]">Estado</TableHead>
             <TableHead className="text-slate-400 font-medium text-right w-[180px]">Acciones</TableHead>
           </TableRow>
         </TableHeader>
@@ -57,13 +58,13 @@ const QuoteListTable = ({ quotes, onView, onEdit, onDownload, onDelete }) => {
               >
                 <TableCell>
                   <div className="flex items-center gap-2 group/id">
-                     <span className="font-mono text-orange-400 font-bold">{formatQuoteId(quote.id)}</span>
-                     <button 
-                       onClick={() => copyToClipboard(quote.id)}
-                       className="opacity-0 group-hover/id:opacity-100 transition-opacity text-slate-400 hover:text-white"
-                     >
-                       <Copy className="w-3 h-3" />
-                     </button>
+                    <span className="font-mono text-orange-400 font-bold">{formatQuoteId(quote.id)}</span>
+                    <button
+                      onClick={() => copyToClipboard(quote.id)}
+                      className="opacity-0 group-hover/id:opacity-100 transition-opacity text-slate-400 hover:text-white"
+                    >
+                      <Copy className="w-3 h-3" />
+                    </button>
                   </div>
                 </TableCell>
                 <TableCell>
@@ -91,6 +92,17 @@ const QuoteListTable = ({ quotes, onView, onEdit, onDownload, onDelete }) => {
                     ${(quote.total || 0).toLocaleString('es-AR')}
                   </span>
                 </TableCell>
+                <TableCell className="text-center">
+                  {quote.status === 'Vendido' ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-500/20 text-green-400 border border-green-500/30">
+                      <CheckCircle className="w-3 h-3" /> Vendido
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-yellow-500/20 text-yellow-400 border border-yellow-500/30">
+                      Vigente
+                    </span>
+                  )}
+                </TableCell>
                 <TableCell className="text-right">
                   <div className="flex items-center justify-end gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
                     <Button
@@ -108,6 +120,7 @@ const QuoteListTable = ({ quotes, onView, onEdit, onDownload, onDelete }) => {
                       onClick={() => onEdit(quote)}
                       title="Editar"
                       className="h-8 w-8 text-slate-400 hover:text-orange-400 hover:bg-orange-500/10"
+                      disabled={quote.status === 'Vendido'}
                     >
                       <Edit className="w-4 h-4" />
                     </Button>
@@ -126,6 +139,7 @@ const QuoteListTable = ({ quotes, onView, onEdit, onDownload, onDelete }) => {
                       onClick={() => onDelete(quote)}
                       title="Eliminar"
                       className="h-8 w-8 text-slate-400 hover:text-red-400 hover:bg-red-500/10"
+                      disabled={quote.status === 'Vendido'}
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>

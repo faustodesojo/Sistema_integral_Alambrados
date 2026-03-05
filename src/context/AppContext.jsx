@@ -350,9 +350,9 @@ export const AppProvider = ({ children }) => {
             type: 'Venta Mostrador'
         });
 
-        // Add cash movement if cash register is open
-        if (cashRegister.isOpen && paymentMethod === 'Efectivo') {
-            addCashMovement('ingreso', total, `Venta mostrador ${newOrder.orderNumber}`);
+        // Add cash movement for ALL payment methods
+        if (cashRegister.isOpen) {
+            addCashMovement('ingreso', total, `Venta mostrador ${newOrder.orderNumber}`, paymentMethod);
         }
 
         // Update stock
@@ -387,6 +387,12 @@ export const AppProvider = ({ children }) => {
 
     // === WAREHOUSE ACTIONS ===
     const createWarehouseOrder = (orderData) => {
+        // Restricción: no se puede generar orden de depósito sin presupuesto vinculado
+        if (!orderData.quoteId) {
+            toast({ title: "Error", description: "No se puede generar una orden de depósito sin un presupuesto vinculado.", variant: "destructive" });
+            return null;
+        }
+
         const newWO = {
             id: Date.now().toString(),
             number: generateWarehouseOrderNumber(),
@@ -395,14 +401,22 @@ export const AppProvider = ({ children }) => {
             quoteNumber: orderData.quoteNumber,
             clientName: orderData.clientName || 'Cliente Desconocido',
             type: orderData.type || 'complete',
-            status: 'Pendiente',
-            items: (orderData.items || []).map(i => ({ ...i, prepared: 0, completed: false })),
+            status: 'Completada',
+            items: (orderData.items || []).map(i => ({ ...i, prepared: i.quantity, completed: true })),
             assignedTo: null,
             date: new Date().toISOString(),
-            history: [{ status: 'Pendiente', date: new Date().toISOString(), user: user?.username || 'Sistema' }]
+            history: [{ status: 'Completada', date: new Date().toISOString(), user: user?.username || 'Sistema' }]
         };
         setWarehouseOrders(prev => [newWO, ...prev]);
-        logAudit('Crear', 'Depósito', newWO.number, `Orden ${newWO.type} para Presupuesto #${newWO.quoteId}`);
+
+        // Descontar stock automáticamente al generar la orden
+        (orderData.items || []).forEach(item => {
+            if (item.productId) {
+                updateProductStock(item.productId, -(item.quantity || 0));
+            }
+        });
+
+        logAudit('Crear', 'Depósito', newWO.number, `Orden ${newWO.type} para Presupuesto #${newWO.quoteId} - Stock descontado`);
         return newWO;
     };
 
@@ -440,7 +454,7 @@ export const AppProvider = ({ children }) => {
             history: [{ status: 'Solicitada', date: new Date().toISOString(), user: user?.username }]
         };
         setReturns(prev => [newReturn, ...prev]);
-        logAudit('Crear', 'Devolución', newReturn.number, `Solicitud de devolución para orden ${data.orderNumber}`);
+        logAudit('Crear', 'Devolución', newReturn.number, `Solicitud de devolución para presupuesto #${data.quoteNumber || data.orderNumber}`);
         toast({ title: "Devolución solicitada", description: `Solicitud ${newReturn.number} creada.` });
     };
 
@@ -486,7 +500,7 @@ export const AppProvider = ({ children }) => {
         };
         setPayments(prev => [newPayment, ...prev]);
 
-        // Update order paid amount
+        // Update order paid amount (legacy)
         if (data.orderId) {
             setOrders(prev => prev.map(o => {
                 if (o.id === data.orderId) {
@@ -496,7 +510,22 @@ export const AppProvider = ({ children }) => {
             }));
         }
 
-        logAudit('Crear', 'Pago', newPayment.id, `Pago de $${data.amount} para orden ${data.orderNumber}`);
+        // Update presupuesto paid amount
+        if (data.quoteId) {
+            setPresupuestos(prev => prev.map(p => {
+                if (p.id === data.quoteId) {
+                    return { ...p, paid: (p.paid || 0) + data.amount };
+                }
+                return p;
+            }));
+        }
+
+        // Add cash movement if register is open
+        if (cashRegister.isOpen && data.amount > 0 && !data._skipCashMovement) {
+            addCashMovement('ingreso', data.amount, `Pago presupuesto #${data.quoteNumber || data.orderNumber || ''}`, data.method || 'Efectivo');
+        }
+
+        logAudit('Crear', 'Pago', newPayment.id, `Pago de $${data.amount} para ${data.quoteNumber ? 'presupuesto #' + data.quoteNumber : 'orden ' + data.orderNumber}`);
         toast({ title: "Pago registrado", description: `Pago de $${data.amount?.toLocaleString('es-AR')} registrado.` });
     };
 
@@ -645,6 +674,8 @@ export const AppProvider = ({ children }) => {
             ...p,
             id: finalId,
             quoteNumber: finalId,
+            status: 'Vigente',
+            paid: 0,
             clientData: { ...clientData, ...p.clientData },
             date: new Date().toISOString()
         };
@@ -655,6 +686,65 @@ export const AppProvider = ({ children }) => {
         }
 
         return newP;
+    };
+
+    // === REGISTER QUOTE SALE ("Dar Vendido") ===
+    const registerQuoteSale = (quoteId, paymentMethod = 'Efectivo') => {
+        const quote = presupuestos.find(p => p.id === quoteId);
+        if (!quote) {
+            toast({ title: "Error", description: "Presupuesto no encontrado.", variant: "destructive" });
+            return false;
+        }
+        if (quote.status === 'Vendido') {
+            toast({ title: "Error", description: "Este presupuesto ya fue cobrado.", variant: "destructive" });
+            return false;
+        }
+
+        const allItems = [
+            ...(quote.calculatedMaterials || quote.materials || []),
+            ...(quote.manualMaterials || [])
+        ];
+        const total = quote.total || 0;
+
+        // 1. Mark quote as Vendido
+        setPresupuestos(prev => prev.map(p => {
+            if (p.id === quoteId) {
+                return { ...p, status: 'Vendido', paid: total, soldDate: new Date().toISOString() };
+            }
+            return p;
+        }));
+
+        // 2. Deduct stock
+        allItems.forEach(item => {
+            if (item.productId) {
+                updateProductStock(item.productId, -(item.quantity || 0));
+            }
+        });
+
+        // 3. Register payment
+        createPayment({
+            quoteId: quoteId,
+            quoteNumber: quote.quoteNumber,
+            amount: total,
+            method: paymentMethod,
+            clientName: quote.clientData?.name || 'Consumidor Final',
+            type: 'Venta Presupuesto',
+            _skipCashMovement: true // we handle it below
+        });
+
+        // 4. Add cash movement
+        if (cashRegister.isOpen) {
+            addCashMovement('ingreso', total, `Venta presupuesto #${quote.quoteNumber}`, paymentMethod);
+        }
+
+        // 5. Update CRM
+        if (quote.clientData?.name) {
+            addOrUpdateClient(quote.clientData.name, { type: 'sale', id: quote.quoteNumber, total, date: new Date().toISOString() });
+        }
+
+        logAudit('Venta', 'Presupuesto', quote.quoteNumber, `Presupuesto #${quote.quoteNumber} vendido por $${total} (${paymentMethod})`);
+        toast({ title: "¡Venta registrada!", description: `Presupuesto #${quote.quoteNumber} - $${total.toLocaleString('es-AR')} (${paymentMethod})` });
+        return true;
     };
     const updateQuote = (updatedQuote) => setPresupuestos(prev => prev.map(p => p.id === updatedQuote.id ? updatedQuote : p));
     const deletePresupuesto = (id) => setPresupuestos(presupuestos.filter(p => p.id !== id));
@@ -761,7 +851,7 @@ export const AppProvider = ({ children }) => {
         // Auth
         login, logout, hasRole,
         // Orders
-        createOrder, createDirectOrder, updateOrderStatus,
+        createOrder, createDirectOrder, updateOrderStatus, registerQuoteSale,
         // Warehouse
         createWarehouseOrder, updateWarehouseOrder, deleteWarehouseOrder,
         // Returns
